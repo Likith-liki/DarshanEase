@@ -1,79 +1,162 @@
-const QRCode = require("qrcode");
+// backend/controllers/bookingController.js
 const Booking = require("../models/Booking");
 const Darshan = require("../models/Darshan");
+const Temple = require("../models/Temple");
+const QRCode = require("qrcode");
 
+// Create a new booking
 const createBooking = async (req, res) => {
   try {
-    const { darshanId, bookingDate, ticketType, numberOfTickets } = req.body;
-    const darshan = await Darshan.findById(darshanId).populate("temple");
-    if (!darshan) return res.status(404).json({ message: "Darshan not found" });
+    const { darshanId, ticketType, numberOfTickets } = req.body;
+    const userId = req.user.id;
 
-    const qty = Number(numberOfTickets) || 1;
+    // Validate input
+    if (!darshanId || !ticketType || !numberOfTickets) {
+      return res.status(400).json({
+        message: "Please provide all required fields",
+      });
+    }
+
+    // Check if darshan exists
+    const darshan = await Darshan.findById(darshanId);
+    if (!darshan) {
+      return res.status(404).json({ message: "Darshan not found" });
+    }
+
+    // Check availability
+    if (darshan.availableSeats < numberOfTickets) {
+      return res.status(400).json({
+        message: `Only ${darshan.availableSeats} seats available`,
+      });
+    }
+
+    // Calculate total amount
     const price = ticketType === "vip" ? darshan.vipPrice : darshan.normalPrice;
-    const totalAmount = (price || 0) * qty;
+    const totalAmount = price * numberOfTickets;
 
+    // Create booking
     const booking = await Booking.create({
-      user: req.user.id,
-      darshan: darshan._id,
-      temple: darshan.temple._id,
-      bookingDate,
-      ticketType: ticketType || "normal",
-      numberOfTickets: qty,
+      user: userId,
+      darshan: darshanId,
+      temple: darshan.temple,
+      bookingDate: new Date(),
+      ticketType,
+      numberOfTickets,
       totalAmount,
+      status: "confirmed",
     });
 
-    const qrPayload = JSON.stringify({
+    // Update available seats
+    darshan.availableSeats -= numberOfTickets;
+    await darshan.save();
+
+    // Generate QR Code
+    const qrCodeData = JSON.stringify({
       bookingId: booking._id,
+      temple: darshan.temple,
       darshan: darshan.darshanName,
+      date: booking.bookingDate,
+      ticketType,
+      numberOfTickets,
     });
-    booking.qrCode = await QRCode.toDataURL(qrPayload);
-    await booking.save();
+    const qrCode = await QRCode.toDataURL(qrCodeData);
 
-    res.status(201).json(booking);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    // Populate booking details
+    const populatedBooking = await Booking.findById(booking._id)
+      .populate("user", "name email phone")
+      .populate("darshan", "darshanName startTime endTime")
+      .populate("temple", "templeName location image");
+
+    res.status(201).json({
+      ...populatedBooking.toObject(),
+      qrCode,
+    });
+  } catch (error) {
+    console.error("Booking error:", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
+// Get user's bookings
 const getMyBookings = async (req, res) => {
-  const bookings = await Booking.find({ user: req.user.id })
-    .populate("darshan")
-    .populate("temple")
-    .sort({ createdAt: -1 });
-  res.json(bookings);
+  try {
+    const bookings = await Booking.find({ user: req.user.id })
+      .populate("darshan", "darshanName startTime endTime normalPrice vipPrice")
+      .populate("temple", "templeName location image")
+      .sort({ createdAt: -1 });
+    res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
+// Cancel booking
 const cancelBooking = async (req, res) => {
-  const booking = await Booking.findOne({
-    _id: req.params.id,
-    user: req.user.id,
-  });
-  if (!booking) return res.status(404).json({ message: "Booking not found" });
-  booking.status = "cancelled";
-  await booking.save();
-  res.json(booking);
+  try {
+    const booking = await Booking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    // Check if user owns this booking
+    if (booking.user.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    if (booking.status === "cancelled") {
+      return res.status(400).json({ message: "Booking already cancelled" });
+    }
+
+    // Update booking status
+    booking.status = "cancelled";
+    await booking.save();
+
+    // Add seats back to darshan
+    const darshan = await Darshan.findById(booking.darshan);
+    if (darshan) {
+      darshan.availableSeats += booking.numberOfTickets;
+      await darshan.save();
+    }
+
+    res.json({ message: "Booking cancelled successfully", booking });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
-// Organizer: bookings for own temple
+// Get organizer bookings
 const getOrganizerBookings = async (req, res) => {
-  const Temple = require("../models/Temple");
-  const temple = await Temple.findOne({ organizer: req.user.id });
-  if (!temple) return res.json([]);
-  const bookings = await Booking.find({ temple: temple._id })
-    .populate("darshan")
-    .populate("user", "name email")
-    .sort({ createdAt: -1 });
-  res.json(bookings);
+  try {
+    // First find the temple managed by this organizer
+    const temple = await Temple.findOne({ organizer: req.user.id });
+    if (!temple) {
+      return res.json([]);
+    }
+
+    const bookings = await Booking.find({ temple: temple._id })
+      .populate("user", "name email phone")
+      .populate("darshan", "darshanName startTime endTime")
+      .populate("temple", "templeName location")
+      .sort({ createdAt: -1 });
+    res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
-// Admin: all bookings
+// Get all bookings (admin)
 const getAllBookings = async (req, res) => {
-  const bookings = await Booking.find()
-    .populate("darshan")
-    .populate("temple")
-    .populate("user", "name email")
-    .sort({ createdAt: -1 });
-  res.json(bookings);
+  try {
+    const bookings = await Booking.find()
+      .populate("user", "name email phone")
+      .populate("darshan", "darshanName startTime endTime")
+      .populate("temple", "templeName location")
+      .sort({ createdAt: -1 });
+    res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
 module.exports = {

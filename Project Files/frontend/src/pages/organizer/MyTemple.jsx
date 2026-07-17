@@ -68,7 +68,7 @@ const MyTemple = () => {
         />
         <div style={{ padding: "24px" }}>
           <h2>{temple.templeName}</h2>
-          <p style={{ fontSize: "1.1rem" }}>📍 {temple.location}</p>
+          <p style={{ fontSize: "1.1rem" }}> {temple.location}</p>
           <div style={{ display: "flex", gap: "20px", margin: "16px 0" }}>
             <div>
               <strong>Darshan Start</strong>

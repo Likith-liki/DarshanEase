@@ -1,4 +1,3 @@
-// App.jsx
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar.jsx";
@@ -24,6 +23,7 @@ import AdminDashboard from "./pages/admin/Dashboard.jsx";
 import AdminUsers from "./pages/admin/Users.jsx";
 import AdminOrganizers from "./pages/admin/Organizers.jsx";
 import AdminTemples from "./pages/admin/Temples.jsx";
+import RevenueDashboard from "./pages/admin/RevenueDashboard.jsx";
 
 function App() {
   return (
@@ -132,6 +132,14 @@ function App() {
             element={
               <ProtectedRoute role="admin">
                 <AdminTemples />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/revenue"
+            element={
+              <ProtectedRoute role="admin">
+                <RevenueDashboard />
               </ProtectedRoute>
             }
           />

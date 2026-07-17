@@ -15,6 +15,7 @@ const bookingRoutes = require("./routes/bookingRoutes");
 const organizerRoutes = require("./routes/organizerRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 
+
 const app = express();
 
 // Middleware
@@ -52,6 +53,6 @@ const PORT = process.env.PORT || 8000;
 connectDB().then(() => {
   ensureDefaultAdmin();
   app.listen(PORT, () =>
-    console.log(`🚀 Server running on http://localhost:${PORT}`),
+    console.log(` Server running on http://localhost:${PORT}`),
   );
 });

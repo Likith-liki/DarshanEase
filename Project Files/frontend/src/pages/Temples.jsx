@@ -72,7 +72,7 @@ const Temples = () => {
                 <h3>{temple.templeName}</h3>
                 <p> {temple.location}</p>
                 <div className="times">
-                  <span>🕐 {temple.darshanStartTime}</span>
+                  <span> {temple.darshanStartTime}</span>
                   <span>to {temple.darshanEndTime}</span>
                 </div>
                 <p

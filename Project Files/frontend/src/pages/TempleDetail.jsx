@@ -1,4 +1,4 @@
-// client/src/pages/TempleDetail.jsx
+// frontend/src/pages/TempleDetail.jsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -11,13 +11,14 @@ const TempleDetail = () => {
   const [temple, setTemple] = useState(null);
   const [darshans, setDarshans] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [booking, setBooking] = useState({
-    darshanId: "",
+  const [selectedDarshan, setSelectedDarshan] = useState(null);
+  const [bookingData, setBookingData] = useState({
     ticketType: "normal",
     numberOfTickets: 1,
   });
   const [bookingMessage, setBookingMessage] = useState("");
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [showBookingForm, setShowBookingForm] = useState(false);
 
   useEffect(() => {
     fetchTempleAndDarshans();
@@ -38,36 +39,65 @@ const TempleDetail = () => {
     }
   };
 
+  // Calculate total amount
+  const calculateTotal = () => {
+    if (!selectedDarshan) return 0;
+    const price =
+      bookingData.ticketType === "vip"
+        ? selectedDarshan.vipPrice
+        : selectedDarshan.normalPrice;
+    return price * bookingData.numberOfTickets;
+  };
+
+  // Handle booking submission
   const handleBooking = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); // 1. Prevent page refresh
+
+    // 2. Check if user is logged in and has the correct role
     if (!auth) {
-      navigate("/login");
+      setBookingMessage("⚠️ Please login to book a darshan");
       return;
     }
     if (auth.role !== "user") {
-      setBookingMessage("Only devotees can book darshans");
+      setBookingMessage("⚠️ Only devotees can book darshans");
       return;
     }
 
-    setBookingLoading(true);
+    setBookingLoading(true); // 3. Show loading state
     setBookingMessage("");
 
     try {
+      // 4. Send booking data to the backend API
       const response = await api.post("/bookings", {
-        darshanId: booking.darshanId,
-        ticketType: booking.ticketType,
-        numberOfTickets: booking.numberOfTickets,
+        darshanId: selectedDarshan._id,
+        ticketType: bookingData.ticketType,
+        numberOfTickets: bookingData.numberOfTickets,
       });
 
-      setBookingMessage(" Booking successful! Check your bookings.");
-      setTimeout(() => navigate("/my-bookings"), 1500);
+      // 5. Handle successful response
+      setBookingMessage("✅ Booking successful! 🎉");
+      // ... redirect to My Bookings page
     } catch (error) {
-      setBookingMessage(
-        error.response?.data?.message || "Booking failed. Please try again.",
-      );
+      // 6. Handle errors (e.g., no seats left)
+      setBookingMessage(error.response?.data?.message || "❌ Booking failed.");
     } finally {
       setBookingLoading(false);
     }
+  };
+
+  // Open booking form for a specific darshan
+  const openBookingForm = (darshan) => {
+    if (darshan.availableSeats <= 0) {
+      setBookingMessage(" No seats available for this darshan");
+      return;
+    }
+    setSelectedDarshan(darshan);
+    setShowBookingForm(true);
+    setBookingMessage("");
+    setBookingData({
+      ticketType: "normal",
+      numberOfTickets: 1,
+    });
   };
 
   if (loading)
@@ -85,10 +115,12 @@ const TempleDetail = () => {
 
   return (
     <div>
+      {/* Temple Hero Section */}
       <div
         style={{
-          backgroundImage: `url(${temple.image || "/temple-placeholder.jpg"})`,
+          background: `url("/temple-placeholder.jpg")`,
           backgroundSize: "cover",
+          height: "700px",
           backgroundPosition: "center",
           padding: "60px 20px",
           borderRadius: "10px",
@@ -100,11 +132,13 @@ const TempleDetail = () => {
         <h1>{temple.templeName}</h1>
         <p> {temple.location}</p>
         <p>
+          {" "}
           {temple.darshanStartTime} - {temple.darshanEndTime}
         </p>
         {temple.description && <p>{temple.description}</p>}
       </div>
 
+      {/* Darshan List */}
       <h2 className="page-title">Available Darshans</h2>
 
       {darshans.length === 0 ? (
@@ -118,9 +152,11 @@ const TempleDetail = () => {
             <div key={darshan._id} className="card darshan-card">
               <h4>{darshan.darshanName}</h4>
               <p>
+                {" "}
                 {darshan.startTime} - {darshan.endTime}
               </p>
               <p>
+                {" "}
                 Normal: ₹{darshan.normalPrice} | VIP: ₹{darshan.vipPrice}
               </p>
               <p> Available Seats: {darshan.availableSeats}</p>
@@ -130,94 +166,216 @@ const TempleDetail = () => {
                 </p>
               )}
 
-              {auth?.role === "user" && darshan.availableSeats > 0 && (
-                <div style={{ marginTop: "12px" }}>
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => {
-                      setBooking({
-                        darshanId: darshan._id,
-                        ticketType: "normal",
-                        numberOfTickets: 1,
-                      });
-                    }}
-                  >
-                    Book Now
-                  </button>
-                </div>
+              {/* Book Now Button */}
+              {darshan.availableSeats > 0 ? (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => openBookingForm(darshan)}
+                  style={{ marginTop: "12px", width: "100%" }}
+                >
+                  Book Now
+                </button>
+              ) : (
+                <button
+                  className="btn btn-outline"
+                  disabled
+                  style={{ marginTop: "12px", width: "100%", opacity: 0.6 }}
+                >
+                  Fully Booked
+                </button>
               )}
             </div>
           ))}
         </div>
       )}
 
-      {/* Booking Modal/Form */}
-      {booking.darshanId && (
-        <div className="form-card" style={{ marginTop: "30px" }}>
-          <h2>Book Darshan</h2>
-          {bookingMessage && (
+      {/* Booking Form Modal */}
+      {showBookingForm && selectedDarshan && (
+        <div
+          className="booking-modal"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px",
+          }}
+        >
+          <div
+            className="form-card"
+            style={{
+              background: "white",
+              color: "#222",
+              maxWidth: "500px",
+              width: "100%",
+              maxHeight: "90vh",
+              overflow: "auto",
+              padding: "30px",
+              borderRadius: "12px",
+            }}
+          >
             <div
-              className={
-                bookingMessage.includes(" Booking successful!")
-                  ? "success-msg"
-                  : "error-msg"
-              }
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "20px",
+              }}
             >
-              {bookingMessage}
-            </div>
-          )}
-          <form onSubmit={handleBooking}>
-            <div className="form-group">
-              <label>Ticket Type</label>
-              <select
-                value={booking.ticketType}
-                onChange={(e) =>
-                  setBooking({ ...booking, ticketType: e.target.value })
-                }
-              >
-                <option value="normal">Normal</option>
-                <option value="vip">VIP</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Number of Tickets</label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                value={booking.numberOfTickets}
-                onChange={(e) =>
-                  setBooking({
-                    ...booking,
-                    numberOfTickets: parseInt(e.target.value),
-                  })
-                }
-                required
-              />
-            </div>
-            <div style={{ display: "flex", gap: "10px" }}>
+              <h2 style={{ margin: 0 }}>Book Darshan</h2>
               <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={bookingLoading}
+                onClick={() => {
+                  setShowBookingForm(false);
+                  setSelectedDarshan(null);
+                  setBookingMessage("");
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "1.5rem",
+                  cursor: "pointer",
+                  color: "#666",
+                }}
               >
-                {bookingLoading ? "Booking..." : "Confirm Booking"}
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline"
-                onClick={() =>
-                  setBooking({
-                    darshanId: "",
-                    ticketType: "normal",
-                    numberOfTickets: 1,
-                  })
-                }
-              >
-                Cancel
+                ✕
               </button>
             </div>
-          </form>
+
+            {/* Darshan Details */}
+            <div
+              style={{
+                background: "#f8f9fa",
+                padding: "12px",
+                borderRadius: "8px",
+                marginBottom: "20px",
+              }}
+            >
+              <h4 style={{ margin: 0 }}>{selectedDarshan.darshanName}</h4>
+              <p style={{ margin: "5px 0", fontSize: "0.9rem" }}>
+                {" "}
+                {selectedDarshan.startTime} - {selectedDarshan.endTime}
+              </p>
+              <p style={{ margin: "5px 0", fontSize: "0.9rem" }}>
+                {" "}
+                Available: {selectedDarshan.availableSeats} seats
+              </p>
+            </div>
+
+            {bookingMessage && (
+              <div
+                className={
+                  bookingMessage.includes("✅") ? "success-msg" : "error-msg"
+                }
+              >
+                {bookingMessage}
+              </div>
+            )}
+
+            <form onSubmit={handleBooking}>
+              <div className="form-group">
+                <label>Ticket Type</label>
+                <select
+                  value={bookingData.ticketType}
+                  onChange={(e) =>
+                    setBookingData({
+                      ...bookingData,
+                      ticketType: e.target.value,
+                    })
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    borderRadius: "6px",
+                    border: "1px solid #ddd",
+                  }}
+                >
+                  <option value="normal">
+                    Normal - ₹{selectedDarshan.normalPrice}
+                  </option>
+                  <option value="vip">VIP - ₹{selectedDarshan.vipPrice}</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Number of Tickets</label>
+                <input
+                  type="number"
+                  min="1"
+                  max={Math.min(10, selectedDarshan.availableSeats)}
+                  value={bookingData.numberOfTickets}
+                  onChange={(e) =>
+                    setBookingData({
+                      ...bookingData,
+                      numberOfTickets: parseInt(e.target.value) || 1,
+                    })
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    borderRadius: "6px",
+                    border: "1px solid #ddd",
+                  }}
+                />
+                <small style={{ color: "#666" }}>
+                  Max: {Math.min(10, selectedDarshan.availableSeats)} tickets
+                </small>
+              </div>
+
+              {/* Total Amount */}
+              <div
+                style={{
+                  background: "#e8f5e9",
+                  padding: "12px",
+                  borderRadius: "8px",
+                  margin: "16px 0",
+                  textAlign: "center",
+                }}
+              >
+                <strong>Total Amount: ₹{calculateTotal()}</strong>
+              </div>
+
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={bookingLoading}
+                  style={{ flex: 1, padding: "12px" }}
+                >
+                  {bookingLoading ? "Processing..." : "Confirm Booking"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => {
+                    setShowBookingForm(false);
+                    setSelectedDarshan(null);
+                    setBookingMessage("");
+                  }}
+                  style={{ padding: "12px 24px" }}
+                >
+                  Cancel
+                </button>
+              </div>
+
+              {!auth && (
+                <p
+                  style={{
+                    textAlign: "center",
+                    marginTop: "12px",
+                    color: "#ff6b1a",
+                  }}
+                >
+                  Please <a href="/login">login</a> to book a darshan
+                </p>
+              )}
+            </form>
+          </div>
         </div>
       )}
     </div>

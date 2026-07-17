@@ -13,10 +13,13 @@ const AdminDashboard = () => {
     darshans: 0,
     bookings: 0,
   });
+  const [revenue, setRevenue] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  // Fetch stats
   useEffect(() => {
     fetchStats();
+    fetchRevenue();
   }, []);
 
   const fetchStats = async () => {
@@ -30,12 +33,22 @@ const AdminDashboard = () => {
     }
   };
 
-  if (loading)
+  const fetchRevenue = async () => {
+    try {
+      const response = await api.get("/admin/revenue");
+      setRevenue(response.data.totalRevenue || 0);
+    } catch (error) {
+      console.error("Error fetching revenue:", error);
+    }
+  };
+
+  if (loading) {
     return (
       <p style={{ textAlign: "center", padding: "40px" }}>
         Loading dashboard...
       </p>
     );
+  }
 
   return (
     <div>
@@ -57,7 +70,7 @@ const AdminDashboard = () => {
 
       <div className="stats-row">
         <div className="stat-card" style={{ background: "#e3f2fd" }}>
-          <div>👤 Users</div>
+          <div> Users</div>
           <div className="num">{stats.users}</div>
           <Link to="/admin/users" style={{ fontSize: "0.85rem" }}>
             View all →
@@ -78,11 +91,14 @@ const AdminDashboard = () => {
           </Link>
         </div>
         <div className="stat-card" style={{ background: "#e8f5e9" }}>
-          <div> Darshans</div>
-          <div className="num">{stats.darshans}</div>
+          <div> Revenue</div>
+          <div className="num">₹{revenue.toLocaleString()}</div>
+          <Link to="/admin/revenue" style={{ fontSize: "0.85rem" }}>
+            View details →
+          </Link>
         </div>
         <div className="stat-card" style={{ background: "#fce4ec" }}>
-          <div>Bookings</div>
+          <div> Bookings</div>
           <div className="num">{stats.bookings}</div>
         </div>
       </div>
@@ -116,9 +132,23 @@ const AdminDashboard = () => {
         >
           Manage Temples
         </Link>
+        <Link
+          to="/admin/revenue"
+          className="btn btn-success"
+          style={{
+            textAlign: "center",
+            padding: "16px",
+            background: "#28a745",
+            color: "white",
+            textDecoration: "none",
+            borderRadius: "5px",
+          }}
+        >
+          Revenue Dashboard
+        </Link>
       </div>
 
-      {/* Chart placeholder - you can add Chart.js or Recharts here */}
+      {/* Chart placeholder */}
       <div className="chart-wrap" style={{ marginTop: "32px" }}>
         <h3 style={{ textAlign: "center", marginBottom: "16px" }}>
           System Overview

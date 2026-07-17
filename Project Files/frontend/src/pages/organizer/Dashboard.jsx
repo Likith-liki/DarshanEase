@@ -1,4 +1,4 @@
-// client/src/pages/organizer/Dashboard.jsx
+// frontend/src/pages/organizer/Dashboard.jsx
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
@@ -8,7 +8,6 @@ const OrganizerDashboard = () => {
   const { auth } = useAuth();
   const [stats, setStats] = useState({ temples: 0, darshans: 0, bookings: 0 });
   const [loading, setLoading] = useState(true);
-  const [recentBookings, setRecentBookings] = useState([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -16,12 +15,8 @@ const OrganizerDashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const [statsRes, bookingsRes] = await Promise.all([
-        api.get("/admin/organizer-dashboard"),
-        api.get("/bookings/organizer"),
-      ]);
-      setStats(statsRes.data);
-      setRecentBookings(bookingsRes.data.slice(0, 5));
+      const response = await api.get("/admin/organizer-dashboard");
+      setStats(response.data);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
@@ -29,12 +24,13 @@ const OrganizerDashboard = () => {
     }
   };
 
-  if (loading)
+  if (loading) {
     return (
-      <p style={{ textAlign: "center", padding: "40px" }}>
-        Loading dashboard...
-      </p>
+      <div style={{ textAlign: "center", padding: "40px" }}>
+        <p>Loading dashboard...</p>
+      </div>
     );
+  }
 
   return (
     <div>
@@ -48,7 +44,7 @@ const OrganizerDashboard = () => {
           borderRadius: "8px",
         }}
       >
-        <h3>Welcome, {auth?.name}! 👋</h3>
+        <h3>Welcome, {auth?.name}! </h3>
         <p style={{ margin: 0 }}>Manage your temple and darshans efficiently</p>
       </div>
 
@@ -104,59 +100,6 @@ const OrganizerDashboard = () => {
           View All Bookings
         </Link>
       </div>
-
-      {recentBookings.length > 0 && (
-        <div>
-          <h3>Recent Bookings</h3>
-          <div style={{ marginTop: "12px" }}>
-            {recentBookings.map((booking) => (
-              <div
-                key={booking._id}
-                className="card"
-                style={{ padding: "12px 16px", marginBottom: "8px" }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <div>
-                    <strong>{booking.user?.name || "Unknown"}</strong>
-                    <span style={{ margin: "0 10px", color: "#666" }}>•</span>
-                    {booking.darshan?.darshanName}
-                    <span style={{ margin: "0 10px", color: "#666" }}>•</span>
-                    {booking.ticketType?.toUpperCase()}
-                  </div>
-                  <div>
-                    <span
-                      style={{
-                        background:
-                          booking.status === "confirmed"
-                            ? "#d4edda"
-                            : "#f8d7da",
-                        color:
-                          booking.status === "confirmed"
-                            ? "#155724"
-                            : "#721c24",
-                        padding: "4px 12px",
-                        borderRadius: "12px",
-                        fontSize: "0.8rem",
-                      }}
-                    >
-                      {booking.status}
-                    </span>
-                    <span style={{ marginLeft: "12px", fontWeight: "600" }}>
-                      ₹{booking.totalAmount}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
